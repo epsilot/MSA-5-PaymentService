@@ -1,0 +1,107 @@
+@startuml
+
+title "Диаграмма состояния для процесса OrchestrPay"
+
+hide empty description
+
+state "Создана" as CREATED
+state "Резерв выполнен" as RESERVE_OK
+state "Ошибка резерва" as RESERVE_ERROR
+state "Резерв не подтверждён" as RESERVE_DECLINED
+state "Средства захолдированы" as HOLD_OK
+state "Ошибка холдирования" as HOLD_ERROR
+state "Проверка на фрод" as FRAUD_CHECK
+state "Ошибка отправки в антифрод" as FRAUD_ERROR
+state "Проверка на фрод пройдена" as FRAUD_OK
+state "Проверка на фрод не пройдена" as FRAUD_FAILED
+state "Ручная проверка на фрод" as FRAUD_MANUAL
+state "Списание выполнено" as MONEY_CHARGED_OK
+state "Ошибка списания" as MONEY_CHARGE_ERROR
+state "Деньги переведены контрагенту" as MONEY_TRANSFER_OK
+state "Ошибка перевода контргагенту" as MONEY_TRANSFER_ERROR
+state "Холд средств снят" as UNHOLD_OK
+state "Ошибка снятия холда" as UNHOLD_ERROR
+state "Отмена резерва" as UNRESERVE_OK
+state "Ошибка отмены резерва" as UNRESERVE_ERROR
+state "Ручная обработка" as MANUAL_CHECK
+state "Завершена успешно" as COMPLETED_OK #lightgreen
+state "Завершена с ошибкой" as COMPLETED_ERROR #FF7F7F
+
+state RESERVE_TRY <<choice>>
+state HOLD_TRY <<choice>>
+state FRAUD_TRY <<choice>>
+state MONEY_CHARGE_TRY <<choice>>
+state MONEY_TRANSFER_TRY <<choice>>
+state UNHOLD_TRY <<choice>>
+state UNRESERVE_TRY <<choice>>
+state MANUAL_TRY <<choice>>
+
+[*] -[bold,#green]-> CREATED
+
+CREATED -[bold,#green]-> RESERVE_TRY
+RESERVE_TRY -[bold,#green]-> RESERVE_OK
+RESERVE_TRY --> RESERVE_ERROR
+RESERVE_TRY --> RESERVE_DECLINED
+RESERVE_ERROR -[dotted,#red]-> RESERVE_TRY: retry
+RESERVE_ERROR -[dotted,#red]-> COMPLETED_ERROR: Попытки исчерпаны
+RESERVE_DECLINED --> CREATED
+
+RESERVE_OK -[bold,#green]-> HOLD_TRY
+HOLD_TRY -[bold,#green]-> HOLD_OK
+HOLD_TRY --> HOLD_ERROR
+HOLD_ERROR -[dotted,#red]-> HOLD_TRY: retry
+HOLD_ERROR -[dotted,#red]-> UNRESERVE_TRY: Попытки исчерпаны
+
+HOLD_OK -[bold,#green]-> FRAUD_TRY
+FRAUD_TRY -[bold,#green]-> FRAUD_CHECK
+FRAUD_TRY --> FRAUD_ERROR
+FRAUD_ERROR -[dotted,#red]-> FRAUD_TRY: retry
+FRAUD_ERROR -[dotted,#red]-> UNHOLD_TRY: Попытки исчерпаны
+
+FRAUD_CHECK -[bold,#green]-> FRAUD_OK
+FRAUD_CHECK --> FRAUD_FAILED
+FRAUD_CHECK --> FRAUD_MANUAL
+FRAUD_MANUAL --> FRAUD_OK
+FRAUD_MANUAL --> FRAUD_FAILED
+
+FRAUD_OK -[bold,#green]-> MONEY_CHARGE_TRY
+MONEY_CHARGE_TRY -[bold,#green]-> MONEY_CHARGED_OK
+MONEY_CHARGE_TRY --> MONEY_CHARGE_ERROR
+MONEY_CHARGE_ERROR -[dotted,#red]-> MONEY_CHARGE_TRY: retry
+MONEY_CHARGE_ERROR -[dotted,#red]-> UNHOLD_TRY: Попытки исчерпаны
+
+MONEY_CHARGED_OK -[bold,#green]-> MONEY_TRANSFER_TRY
+MONEY_TRANSFER_TRY -[bold,#green]-> MONEY_TRANSFER_OK
+MONEY_TRANSFER_TRY --> MONEY_TRANSFER_ERROR
+MONEY_TRANSFER_ERROR -[dotted,#red]-> MONEY_TRANSFER_TRY: retry
+MONEY_TRANSFER_ERROR -[dotted,#red]-> MANUAL_TRY
+
+UNHOLD_TRY --> UNHOLD_OK
+UNHOLD_TRY --> UNHOLD_ERROR
+UNHOLD_ERROR -[dotted,#red]-> UNHOLD_TRY: retry
+UNHOLD_ERROR -[dotted,#red]-> MANUAL_TRY: Попытки исчерпаны
+
+UNHOLD_OK --> UNRESERVE_TRY
+UNRESERVE_TRY --> UNRESERVE_OK
+UNRESERVE_TRY --> UNRESERVE_ERROR
+UNRESERVE_ERROR -[dotted,#red]-> UNRESERVE_TRY: retry
+UNRESERVE_ERROR -[dotted,#red]-> MANUAL_TRY: Попытки исчерпаны
+UNRESERVE_OK --> COMPLETED_ERROR
+
+MANUAL_TRY --> MANUAL_CHECK
+MANUAL_CHECK --> COMPLETED_OK
+MANUAL_CHECK --> COMPLETED_ERROR
+
+MONEY_TRANSFER_OK -[bold,#green]-> COMPLETED_OK
+
+note left of CREATED: "Пользователь завершил формирование товара"
+note left of RESERVE_TRY: "Saga. RESERVE_PRODUCTS"
+note left of HOLD_TRY: "Saga. HOLD_MONEY"
+note left of FRAUD_TRY: "Saga. SEND_TO_ANTIFRAUD"
+note left of MONEY_CHARGE_TRY: "Saga. CHARGE_MONEY"
+note left of MONEY_TRANSFER_TRY: "Saga. TRANSFER_MONEY"
+note left of UNHOLD_TRY: "Saga. UNHOLD_MONEY"
+note left of UNRESERVE_TRY: "Saga. UNRESERVE_PRODUCTS"
+note left of MANUAL_TRY: "Saga. ESCALATE"
+
+@enduml
